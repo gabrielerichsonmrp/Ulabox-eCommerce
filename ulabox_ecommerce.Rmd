@@ -1,0 +1,792 @@
+---
+title: "Customer Basket Analysis"
+subtitle: "Supply Chain & Clusters based Strategy analysis"
+date: "`r Sys.Date()`"
+author: "Gabriel Erichson"
+output:
+  rmdformats::readthedown:
+    css:  my_rtd_style.css
+    highlight: kate
+    code_folding: hide
+---
+
+
+```{r setup, echo=FALSE, cache=FALSE}
+library(knitr)
+library(rmdformats)
+
+## Global options
+options(max.print="75")
+options(scipen = 9999999)
+# opts_chunk$set(echo=FALSE,
+# 	             cache=TRUE,
+#                prompt=FALSE,
+#                tidy=TRUE,
+#                message = FALSE,
+# 	             result = "hide",
+#                comment=NA,
+#                message=FALSE,
+#                warning=FALSE)
+
+knitr::opts_chunk$set(
+	echo = TRUE,
+	fig.align = "center",
+	message = FALSE,
+	warning = FALSE,
+	comment = "#>",
+	result = "hide"
+)
+
+opts_knit$set(width=75)
+```
+
+
+
+```{r, echo=FALSE, include=FALSE}
+# Library
+
+# wrangling
+library(tidyverse)
+library(sqldf)
+library(scales)
+library(lubridate)
+library(lattice)
+
+#EDA
+library(GGally)
+library(cowplot)
+
+#visualization
+library(ggplot2)
+library(plotly)
+library(ggthemes)
+library(paletti)
+library(kableExtra)
+library(gridExtra)
+library(grid)
+library(extrafont)
+library(glue)
+library(RColorBrewer)
+loadfonts(quiet = T)
+
+# cross validation
+library(rsample) # Initial Split
+
+# evaluation
+library(yardstick)
+library(caret)
+
+#model
+library(factoextra)
+library(FactoMineR) #PCA
+```
+
+
+```{r, include=FALSE}
+# COLOR
+my_viridis = c(
+col1="#404788FF",
+col2="#39568CFF",
+col3="#33638DFF",
+col4="#2D708EFF",
+col5="#287D8EFF",
+col6="#238A8DFF",
+col7="#1F968BFF",
+col8="#20A387FF",
+col9="#29AF7FFF",
+col10="#3CBB75FF"
+)
+
+pal_one = c(
+col1="#207c06",
+col2="#799922",
+col3="#beb448",
+col4="#ffd178",
+col5="#f3a252",
+col6="#e5703b",
+col7="#d33333")
+
+txt_table_color="#aeb1b1"
+head_table_color ="#78767647"
+bg_table_color="#222629"
+
+viz_palette(pal_one)
+
+my_theme_hex <- get_hex(pal_one)
+my_theme_fill  <- get_scale_fill(get_pal(pal_one))
+my_theme_color <- get_scale_color(get_pal(pal_one))
+my_color_gradient <- colorRampPalette(pal_one)
+my_theme_gradientn <- function(x) scale_colour_gradientn(colours = my_color_gradient(x))
+
+```
+
+
+
+```{r, include=FALSE}
+# PLOT THEME
+my_plot_theme <- function (base_size, base_family="Segoe UI Semibold"){ 
+  dark_color="#222629"
+  facet_header = "#78767647"
+  
+  half_line <- base_size/2
+  theme_algoritma <- theme(
+    
+    plot.background = element_rect(fill=dark_color,colour = NA), #background plot
+    plot.title = element_text(size = rel(1.2), margin = margin(b = half_line * 1.2), 
+                              color="white", hjust = 0, family=base_family, face = "bold"),
+    plot.subtitle = element_text(size = rel(1.0), margin = margin(b = half_line * 1.2), color="white", hjust=0),
+    plot.margin=unit(c(0.5,0.9,0.9,0.5),"cm"),
+    #plot.margin=unit(c(0.5,r=5,1,0.5),"cm"),
+    
+    panel.background = element_rect(fill="#18181800",colour = "#3d3d3d"), #background chart
+    panel.border = element_rect(fill=NA,color = "#3d3d3d"),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_line(color="#3d3d3d", linetype=2),
+    panel.grid.minor.y = element_blank(),
+    #panel.margin = unit(0.8*half_line, "mm"), 
+    panel.margin.x = NULL, 
+    panel.margin.y = NULL, 
+    panel.ontop = FALSE,
+    panel.spacing = unit(1.2,"lines"),
+    
+    legend.background = element_rect(fill="#18181800",colour = NA),
+    legend.text = element_text(size = rel(0.7),color="#bdbdbd"),
+    legend.title =  element_text(colour = "white", size = base_size, lineheight = 0.8),
+    legend.box = NULL, 
+  
+     # text = element_text(colour = "white", size = base_size, lineheight = 0.9, 
+     #                    angle = 0, margin = margin(), debug = FALSE),
+    axis.text = element_text(size = rel(0.8), color="#bdbdbd"),
+    axis.text.x = element_text(margin = margin(t = 0.9 * half_line/2)),
+    axis.text.y = element_text(margin = margin(r = 0.9 * half_line/2)),
+    axis.title.x = element_text(colour = "white", size = base_size, lineheight = 0.8,
+                                margin = margin(t = 0.9 * half_line, b = 0.9 * half_line/2)), 
+    axis.title.y = element_text(colour = "white", size = base_size, lineheight = 0.8,
+                                angle = 90, margin = margin(r = 0.9 * half_line, l = 0.9 * half_line/2)),
+    
+    strip.background = element_rect(fill=facet_header,colour = NA),
+    strip.text = element_text(colour = "white", size = rel(0.8)), 
+    strip.text.x = element_text(margin = margin(t = half_line*0.8, b = half_line*0.8)), 
+    strip.text.y = element_text(angle = -90, margin = margin(l = half_line, r = half_line)),
+    strip.switch.pad.grid = unit(0.1, "cm"), 
+    strip.switch.pad.wrap = unit(0.1, "cm"),
+    complete = TRUE
+    
+  )
+}
+
+```
+
+
+
+# Introduction
+
+Ulabox adalah salah satu perusahaan di Spanyol yang bergerak dibidang online supermarket. Pada tahun 2017, Ulabox mendapatkan €1 juta per-bulan dan berhasil mendapatkan 95% kepuasan pelanggan. Ulabox melayani 8 kategori produk pada tahun 2017, dan tujuh dari delapan kategori disajikan di seluruh Spanyol. Kategori produk **Fresh** hanya disajikan di 2 kota yaitu Madrid & Barcelona.
+
+
+# Goal
+
+Goal dari projek ini yaitu melakukan clustering untuk mengetahui seorang customer itu tergolong customer yang cenderung membeli produk apa dan mencari tau habbit jam melakukan order.
+
+
+# Data
+
+Data yang digunakan mencakup 30k order dari 10k customer pada tahun 2017. Setiap baris data merepresentasikan keranjang belanja customer dalam 1 kali order. Sumber data bisa didapatkan dari sini [The Ulabox Online Supermarket Dataset 2017](https://www.github.com/ulabox/datasets). Berikut informasi data pada dataset:
+
+1. *Order*: merupakan order id
+2. *Customer*: merupakan ID Customer.
+3. *Total Items*: jumlah item yang dibeli pada order terkait.
+4. *Discount*: Total diskon yang didapat customer pada setiap order.
+5. *Weekday*: Hari ketika customer melakukan order. format data 1-7 merepresentasikan hari senin-minggu.
+6. *Hour*: Jam ketika customer melakukan order. format 0-23 merepresentasikan 24 jam/hari.
+7. *Categories*: terdapat 8 kolom kategori produk yang diorder yaitu **Food, Fresh, Drinks, Home, Beauty, Health, Baby, Pets**. Setiap kolom mereprensentasikan persentese biaya yang dikeluarkan pada kategori produk terkait dalam 1 kali order.
+
+<!--
+Food% : Non perishable food, for example: rice, cooking oil, snacks, cookies, sauces, canned food.
+Fresh% : Fresh and frozen food, for example: fresh tuna, fruits, frozen pizza, salads, meat.
+Drinks% : All kind of beverages, like: water, juices, wine, alcoholic drinks, milk, soy drinks.
+Home% : Products for home, from toilet paper to small appliances.
+Beauty% : Items for cleaning your body and makeup; for example: shampoo, shaving foam, cosmetics.
+Health% : Medicinal solutions that can be sold in Spain without medic prescription: diet pills, condoms, tooth paste.
+Baby% : Useful articles if you have a baby: diapers, baby food, baby care.
+Pets% : Items related with dogs, cats and other pets; like food, toys, sanitary sand
+-->
+
+Berikut 10 data teratas:
+
+```{r}
+ulabox <- read_csv("data_input/ulabox_orders_2017.csv")
+
+head(ulabox,10) %>% 
+kable("html", escape = F, align = "c") %>%
+kable_styling(c("striped", "hover", "condensed", "responsive"), full_width = T) %>%
+row_spec(0, color = "white", background = "#222629")  
+```
+
+
+# Data Preprocessing
+
+## Data Structure
+```{r}
+glimpse(ulabox)
+```
+
+format data sudah sesuai, namun saya pribadi lebih suka **weekday** dan **hour** direpresentasikan dalam tipe faktor. Selain itu nama kolom tidak mengandung karakter % dan bersifat lowercase karena mempermudah dalam memproses data.
+
+```{r}
+ulabox$weekday <- sapply(as.factor(ulabox$weekday),switch,
+                         "1"="monday",
+                         "2"="tuesday",
+                         "3"="wednesday",
+                         "4"="thrusday",
+                         "5"="friday",
+                         "6"="saturday",
+                         "7"="sunday")
+ulabox$weekday <- as.factor(ulabox$weekday)
+ulabox$weekday <- ordered(ulabox$weekday, levels=c("monday","tuesday","wednesday","thrusday","friday","saturday","sunday"))
+
+ulabox$hour <- as.factor(ulabox$hour)
+ulabox$hour <- ordered(ulabox$hour, levels=c(0:23))
+
+colnames(ulabox) <- sapply(strsplit(tolower(names(ulabox)), "%"), `[[`, 1)
+glimpse(ulabox)
+
+
+```
+
+
+
+## Missing Value
+```{r}
+colSums(is.na(ulabox))
+```
+
+Tidak terdapat missing value.
+
+## Duplicate Value
+```{r}
+data.frame(
+  "nrow.data" = nrow(ulabox),
+  "nrow.uniqe"= ulabox %>% distinct() %>% nrow()
+)
+
+```
+
+Tidak terdapat duplicate value.
+
+
+
+# Feature Extraction
+
+Ulabox melayani 8 kategori produk pada tahun 2017. Tujuh dari delapan kategori disajikan di seluruh Spanyol dan kategori produk **Fresh** hanya disajikan di 2 kota yaitu Madrid & Barcelona. Berarti bisa kita asumsikan customer yang membeli produk kategori **Fresh** merupakan customer yang berada di Madrid & Barcelona.
+
+```{r}
+loc <- ulabox %>% group_by(customer) %>%
+  summarise(
+    fresh = sum(fresh)
+  ) %>% ungroup() %>%
+  mutate(
+    location = ifelse(fresh>0,"Madrid & Barcelona","Rest of Spain"),
+    location = as.factor(location)
+  ) %>%
+  select(-fresh)
+
+ulabox <- ulabox %>% inner_join(loc, by=c("customer","customer"))
+
+```
+
+
+# EDA
+
+Sesuai yang informasikan dari [The Ulabox Online Supermarket Dataset 2017](https://www.github.com/ulabox/datasets) terdapat customer yang merupakan **Influencer**, dan customer kategori ini mendapatkan diskon 100% atau tidak melakukan pembayaran. Mari kita cek proporsinya. 
+
+```{r}
+data.frame(
+  total_influencer = ulabox %>% filter(discount==100) %>% select(customer) %>% distinct() %>% nrow(),
+  total_customer = ulabox %>% filter(discount!=100) %>% select(customer) %>% distinct() %>% nrow()
+) %>% gather("kategori","total") %>% 
+mutate(
+  prop = total/sum(total)*100
+)
+
+```
+
+Terdapat 321 (3.13%) customer kategori influencer. Customer kategori ini tidak perlu dilakukan clustering karena sebagai influencer, lagipula jumlah datanya cukup kecil sehingga dapat kita keluarkan. berikut hasilnya:
+
+```{r}
+ulabox <- ulabox %>%  filter(discount!=100)
+
+data.frame(
+  total_influencer = ulabox %>% filter(discount==100) %>% select(customer) %>% distinct() %>% nrow(),
+  total_customer = ulabox %>% filter(!discount==100) %>% select(customer) %>% distinct() %>% nrow()
+) %>% gather("kategori","total") %>% 
+mutate(
+  prop = total/sum(total)*100
+)
+```
+
+
+## Top Selling Product
+
+```{r,fig.width=8.5, fig.align="center"}
+plot_top_selling <- ulabox %>%
+  select (food, fresh, drinks, home, beauty, health, baby, pets) %>% 
+  summarise_if(is.numeric, sum) %>% 
+  gather(key = "category", value = "total", food, fresh, drinks, home, beauty, health, baby, pets) %>% 
+  mutate(
+    total = round(total/30000,2),
+    category = as.factor(category),
+    category = reorder(category,total)
+  ) %>% 
+  ggplot(aes(category,total,fill=category,group=category))+
+  geom_bar(aes(fill=category),stat = "identity")+
+  geom_text(aes(label=paste0(total,"%"), y=total+1),color="white",size=3)+
+  labs(
+    title = "Top Selling Product Category in 2017",
+    x="Product Category",
+    y="Selling (%)",
+    fill=""
+  )+
+  my_theme_fill()+
+  my_plot_theme(10)
+
+ggplotly(plot_top_selling,tooltip = NULL) %>% 
+  layout(showlegend=FALSE)
+  
+
+```
+
+Produk kategori **Food, Drinks, Fresh** paling laris ditahun 2017 dengan mendominasi 65.8% penjualan. Chart diatas memberikan informasi unik, meskipun produk kategori **Fresh** hanya dijual di Madrid & Barcelona, tapi produk kategori ini berada diurutan ke-3 dengan mendominasi 20% penjualan di tahun 2017. Mari kita lihat penjualaan hariannya.
+
+```{r, fig.width=8.5, fig.align="center"}
+avg_daily <- ulabox %>% 
+  select (weekday, food,fresh, drinks, home, beauty, health, baby, pets) %>% 
+  group_by(weekday) %>% 
+  summarise_if(is.numeric, mean) %>% 
+  ungroup() %>% 
+   gather(key = "category", value = "total", food, fresh, drinks, home, beauty, health, baby, pets) %>% 
+  mutate(total = round(total,2),
+         category = as.factor(category),
+    category = reorder(category,total))
+  
+  
+#serror <- function(x) sqrt(var(x)/length(x))   
+
+plot_avg_daily <-  ggplot(avg_daily,aes(weekday,total,fill=category,group=category)) +
+  geom_bar(stat="identity")+
+  geom_text(aes(label=ifelse(round(total,2)>10,paste0(round(total,2),"%"),"")),
+            position = position_stack(vjust=0.5), size=2.5, color="white")+
+  labs(
+    title = "Average Daily Sales per Category",
+    x = "",
+    y = ""
+  )+
+  coord_flip()+
+  my_theme_fill()+
+  my_plot_theme(11)
+  
+
+ggplotly(plot_avg_daily, tooltip = NULL) %>% 
+  layout(title = list(text = paste0('Average Daily Sales per Category',
+                                    '<br>',
+                                    '<sup>',
+                                    'Label just displayed on selling > 10%',
+                                    '</sup>')))
+
+  
+```
+
+Rata-rata penjualan setiap harinya juga menunjukan produk kategori **Food, Drinks, Fresh** paling laris dan setiap produk mendominasi penjualan setiap harinya. Rata-rata penjualan masing-masing kategori hampir mirip setiap harinya dan kurang menunjukan adanya efek seasonal mingguan dari kebiasaan customer membeli produk sehingga clustering kita bisa fokus ke jam ketika customer membeli.
+
+
+## Loyal Customer based on Order Frequency
+
+```{r,fig.width=8.5, fig.align="center"}
+loyal_freq <- ulabox %>% 
+  group_by(customer) %>% 
+  summarise(freq=n()) %>% 
+  ungroup() %>% 
+  mutate(
+    popup=glue("Customer ID: {customer}
+               Freq : {freq}")
+  ) %>% 
+  arrange(freq)
+
+getmodus <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+
+plot_loyal_freq <- ggplot(loyal_freq,aes(customer,freq))+
+  geom_point(aes(color=freq, size=freq, text=popup), alpha=0.7)+
+  geom_hline(yintercept=getmodus(loyal_freq$freq),linetype="dashed", color = "yellow",size=0.5,text="adad")+
+  labs(title = "Loyal Customer based on Order Frequency", 
+       x = "Customer", 
+       y = "Order Frequency",
+       color = "Order Frequency")+
+  my_plot_theme(10)+
+  my_theme_gradientn(10)+
+  theme(
+    axis.text.x = element_blank()
+  )+
+  annotate(geom="text", 
+           x=length(loyal_freq$customer)-1/10*length(loyal_freq$customer), 
+           y=getmodus(loyal_freq$freq)+1.5,size=3,
+           label=paste0("Modus: ",(tabulate(match(loyal_freq$freq, unique(loyal_freq$freq))) %>% sort(decreasing = T) %>% .[1]),
+                        "/",length(loyal_freq$customer), " cust"),
+           color="yellow")
+
+ggplotly(plot_loyal_freq, tooltip="text")
+
+
+
+
+```
+
+Chart diatas menunjukan Frekuensi Order dari masing-masing customer. Terdapat 1 Customer yang melakukan order 52 kali ditahun 2017. Selain itu, garis kuning menunjukan customer dengan frekuensi order 1 kali paling banyak dengan jumlah 4239 dari 9940 customer.
+
+
+
+## Loyal Customer based on Total Order Items
+```{r,fig.width=8.5, fig.align="center"}
+
+loyal_cust_item <-  ulabox %>% 
+  group_by(customer) %>% 
+  summarise(total_item_order=sum(total_items)) %>% 
+  ungroup() %>% 
+  mutate(
+    popup=glue("Customer ID: {customer}
+               Total Item Order : {total_item_order}")
+  ) %>% 
+  arrange(total_item_order) 
+
+
+getmodus <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+plot_loyal_cust <- ggplot(loyal_cust_item, aes(customer,total_item_order))+
+  geom_point(aes(color=total_item_order,text=popup),alpha=0.8, size=2.5)+
+  geom_hline(yintercept=getmodus(loyal_cust_item$total_item_order),linetype="dashed", color = "yellow",size=0.5)+
+  labs(title = "Loyal Customer based on Total Order Items", 
+       x = "Customer", 
+       y = "Total Item Order",
+       color = "Total Item")+
+  my_plot_theme(10)+
+  my_theme_gradientn(10)+
+  theme(
+    axis.text.x = element_blank()
+  )+
+  annotate(geom="text", 
+           x=length(loyal_cust_item$customer)-1/10*length(loyal_cust_item$customer), 
+           y=getmodus(loyal_cust_item$total_item_order)+50,size=3,
+           label=paste0("Modus: ",(tabulate(match(loyal_cust_item$total_item_order, 
+                                                  unique(loyal_cust_item$total_item_order))) %>% 
+                                     sort(decreasing = T) %>% .[1]),"/",length(loyal_cust_item$customer), " cust"),
+           color="yellow")
+
+ggplotly(plot_loyal_cust)
+
+```
+
+
+Chart diatas menunjukan jumlah item yang di order masing-masing customer cukup bervaratif. Meskipun begitu. proporsi customer yang hanya meng-order 1 item adalah yang paling besar dengan jumlah 304 dari 9940 customer.
+
+
+***
+
+# Basket Analysis
+
+## Data Tranformation
+Tujuan dari clustering kali ini yaitu untuk mengetahui apakah terdapat cluster pada data ini. Untuk maka kita bisa mentransformasi datanya menjadi:
+
+1. *food* : rata-rata persentase pembelian produk kategori food
+2. *fresh* : rata-rata persentase pembelian produk kategori fresh
+3. *drinks* : rata-rata persentase pembelian produk kategori drinks
+4. *home* : rata-rata persentase pembelian produk kategori home
+5. *beauty* : rata-rata persentase pembelian produk kategori beauty
+6. *health* : rata-rata persentase pembelian produk kategori health
+7. *baby* : rata-rata persentase pembelian produk kategori baby
+8. *pets* : rata-rata persentase pembelian produk kategori pets
+
+
+Saya memilih menggunakan rata-rata karena data kita menunjukan 1 customer bisa melakukan order beberapa kali.
+
+```{r}
+ub_data <- ulabox
+
+ub_data <- ub_data %>% 
+  group_by(customer) %>% 
+  summarise(
+    food = mean(food),
+    fresh = mean(fresh),
+    drinks = mean(drinks),
+    home = mean(home),
+    beauty = mean(beauty),
+    health = mean(health),
+    baby = mean(baby),
+    pets = mean(pets)
+  ) %>% 
+  ungroup() %>% arrange(customer)
+
+
+head(ub_data,10) %>% 
+kable("html", escape = F, align = "c") %>%
+kable_styling(c("striped", "hover", "condensed", "responsive"), full_width = T) %>%
+row_spec(0, color = "white", background = "#222629") 
+
+```
+
+
+## Optimal K for Clustering
+
+Pada dasarnya kita tidak mengetahui berapa jumlah cluster pada data ini, maka kita perlu mencari jumlah cluster yang optimal. Untuk itu kita bisa menggunakan **Elbow Method**, **Silhouette Method**, **Gap Statistic** atau pendekatan lainnya. Untuk case ini kita akan mencoba **Elbow Method** dan **Silhouette Method**. Pada setiap metode kita perlu menentukan nilai K-Maksimum, dalam case ini saya memilih 15. Berikut hasilnya:<br>
+
+**Elbow Method**<br>
+Dalam menggunakan metode Elbow jumlah cluster terbaik dengan cara melihat persentase hasil perbandingan antara jumlah cluster yang akan membentuk siku pada suatu titik atau jumlah perubahan tinggi titik yang tidak signifikan. Untuk mendapatkan perbandingannya adalah dengan menghitung SSE (Sum of Square Error) dari masing-masing nilai cluster. Jika dilihat dari visualisasi dibawah, perubahan tinggi titik yang tidak signifikan ada pada **K = 7**.
+
+
+```{r}
+fviz_nbclust(ub_data[,-c(1)], kmeans, method = "wss", k.max = 15) + labs(subtitle = "Elbow method")
+```
+
+<br>
+**Silhouette Method**<br>
+Metode Silhouette mengukur koefisien Silhouette dengan menghitung rata-rata jarak setiap data terhadap semua data pada cluster yang sama kemudian menghitung rata-rata jarak setiap data dengan semua data pada cluster lain. Kemudian data akan dikelompokan kembali berdasarkan jarak minimum. Jika dalam perulangan didapati posisi centorid berubah, maka data akan dikelompokan ulang. Berdasarkan visualisasi dibawah, nilai K optimal dapat dilihat pada titik tertinggi. Berdasarkan visualisasi dibawah maka **K-Optimum = 3**.
+
+```{r}
+fviz_nbclust(ub_data[,-c(1)], kmeans, "silhouette", k.max = 15) + labs(subtitle = "Silhouette method")
+```
+
+Kedua metode diatas menunjukan nilai K-Optimum yang berbeda, disisi lain kita tahu bahwa terdapat 8 kategori produk maka ada kemungkinan setiap kategori memiliki pasarnya sendiri. maka mari kita putuskan untuk membandingkan menggunakan **K=3, K=7 dan K=8**.
+
+
+## K-Means Clustering
+
+Kebaikan hasil clustering dapat dilihat dari 3 nilai:
+
+1. **Within Sum of Squares ($withinss)**: jarak tiap observasi ke centroid untuk tiap cluster 
+2. **Total Sum of Squares ($totss)**: jarak tiap observasi ke global sample mean (rata-rata data keseluruhan).
+3. **Between Sum of Squares ($betweenss)**: jarak centroid tiap cluster ke global sample mean 
+
+Clustering yang baik akan menghasilkan **withinss semakin rendah** dan **hasil betweenss/totss mendekati 1 atau 100%**
+
+<br>
+
+
+**Berikut hasil Clustering menggunakan K = 3** <br>
+
+```{r}
+df_cust_cat <- ub_data
+set.seed(119)
+k3_optimum <- 3
+k3_cust<-kmeans(df_cust_cat[,-c(1)], k3_optimum)
+
+k3_cust
+
+```
+
+Informasi diatas merupakan hasil Clustering menggunakan **K=3**. Dapat dilihat hasil **Between Sum of Squares/Total Sum of Squares** sebesar **35%***.
+
+<br>
+
+**Berikut hasil Clustering menggunakan K = 7**<br>
+```{r}
+df_cust_cat <- ub_data
+
+k7_optimum <- 7
+set.seed(119)
+k7_cust<-kmeans(df_cust_cat[,-c(1)], k7_optimum)
+
+k7_cust
+
+```
+
+Informasi diatas merupakan hasil Clustering menggunakan **K=7**. Dapat dilihat hasil **Between Sum of Squares/Total Sum of Squares** sebesar **75.5%**
+
+<br>
+
+**Berikut hasil Clustering menggunakan K = 8**<br>
+```{r}
+df_cust_cat <- ub_data
+
+k8_optimum <- 8
+set.seed(119)
+k8_cust<-kmeans(df_cust_cat[,-c(1)], k8_optimum)
+
+k8_cust
+
+```
+
+Informasi diatas merupakan hasil Clustering menggunakan **K=8**. Dapat dilihat hasil **Between Sum of Squares/Total Sum of Squares** sebesar **78.4%**. Mari kita coba visualisasikan setiap cluster.
+
+```{r,fig.width=7.1, fig.align="center"}
+cust_cluster <- as.matrix(df_cust_cat[,-c(1)])
+
+hm.palette <-colorRampPalette(rev(brewer.pal(10, 'RdYlGn')),space='Lab')
+
+cluster <- c(1: k3_optimum)
+center_df <- data.frame(cluster, k3_cust$centers)
+
+# Reshape the data
+center_reshape <- gather(center_df, features, values, food : pets)
+#head(center_reshape)
+
+#plot data
+ggplot(data = center_reshape, aes(x = features, y = cluster)) +
+  scale_y_continuous(breaks = seq(1, k3_optimum, by = 1)) +
+  geom_tile(aes(fill = values)) +
+  geom_text(aes(label=round(values,2)), size=3, color="white")+
+  coord_equal() +
+  scale_fill_gradientn(colours = hm.palette(90)) +
+  labs(
+    title = "Clustering using K=3"
+  )+
+  my_plot_theme(10)
+
+```
+
+
+```{r, fig.width=9, fig.asp=0.7, fig.align="center"}
+cust_cluster <- as.matrix(df_cust_cat[,-c(1)])
+
+hm.palette <-colorRampPalette(rev(brewer.pal(10, 'RdYlGn')),space='Lab')
+
+cluster <- c(1: k7_optimum)
+center_df <- data.frame(cluster, k7_cust$centers)
+
+# Reshape the data
+center_reshape <- gather(center_df, features, values, food : pets)
+#head(center_reshape)
+
+#plot data
+ggplot(data = center_reshape, aes(x = features, y = cluster)) +
+  scale_y_continuous(breaks = seq(1, k7_optimum, by = 1)) +
+  geom_tile(aes(fill = values)) +
+  geom_text(aes(label=round(values,2)), size=3, color="white")+
+  coord_equal() +
+  scale_fill_gradientn(colours = hm.palette(90)) +
+  labs(
+    title = "Clustering using K=7"
+  )+
+  my_plot_theme(10)
+
+```
+
+
+```{r, fig.width=8.5, fig.asp=0.82, fig.align="center"}
+cust_cluster <- as.matrix(df_cust_cat[,-c(1)])
+
+hm.palette <-colorRampPalette(rev(brewer.pal(10, 'RdYlGn')),space='Lab')
+
+cluster <- c(1: k8_optimum)
+center_df <- data.frame(cluster, k8_cust$centers)
+
+# Reshape the data
+center_reshape <- gather(center_df, features, values, food : pets)
+#head(center_reshape)
+
+#plot data
+ggplot(data = center_reshape, aes(x = features, y = cluster)) +
+  scale_y_continuous(breaks = seq(1, k8_optimum, by = 1)) +
+  geom_tile(aes(fill = values)) +
+  geom_text(aes(label=round(values,2)), size=3, color="white")+
+  coord_equal() +
+  scale_fill_gradientn(colours = hm.palette(90)) +
+  labs(
+    title = "Clustering using K=8"
+  )+
+  my_plot_theme(10)
+
+```
+
+
+Berdasarkan visualisasi diatas, kita akan memilih untuk mengelompokan customer ke 7 cluster karena cenderung memiliki pola yang unik/beridentitas dibandingkan dengan 8 cluster. 
+
+
+<!--
+Food% : Non perishable food, for example: rice, cooking oil, snacks, cookies, sauces, canned food.
+Fresh% : Fresh and frozen food, for example: fresh tuna, fruits, frozen pizza, salads, meat.
+Drinks% : All kind of beverages, like: water, juices, wine, alcoholic drinks, milk, soy drinks.
+Home% : Products for home, from toilet paper to small appliances.
+Beauty% : Items for cleaning your body and makeup; for example: shampoo, shaving foam, cosmetics.
+Health% : Medicinal solutions that can be sold in Spain without medic prescription: diet pills, condoms, tooth paste.
+Baby% : Useful articles if you have a baby: diapers, baby food, baby care.
+Pets% : Items related with dogs, cats and other pets; like food, toys, sanitary sand
+-->
+
+
+## Cluster Profiling
+
+Berdasarkan visualisasi pada chart **Clustering using K=7**, maka berikut ini deskripsi dan label yang dapat kita berikan:
+
+* **cluster 1** : Customer yang dominan membeli produk kategori **Home**, kita beri label = **home decorator**
+* **cluster 2** : Customer yang dominan membeli produk kategori **Food**, kita beri label = **coocking enthusiast**
+* **cluster 3** : Customer ini dominan membeli produk **Fresh**, namun juga sering membeli produk kategori **Drinks,Food dan Home**, kita beri label = **family**
+* **cluster 4** : Customer ini sangat dominan membeli produk **Beauty**, kita beri label = **beauty conscious**
+* **cluster 5** : Customer ini sangat dominan membeli produk **Drinks**, kita beri label = **teenager**
+* **cluster 6** : Customer ini sangat dominan membeli produk **Baby**, kita beri label = **new parents**
+* **cluster 7** : Customer ini memiliki pola pembelian yang hampir mirip dengan cluster 3, namun customer ini lebih cenderung membeli produk katgori **food, drinks dan home**. Terlihat seperti belanja bulanan, maka kita beri label = **regular shopper**
+
+
+```{r, fig.width=8.5, fig.align="center"}
+ub_data <- ulabox
+
+ub_data <- ub_data %>% 
+  group_by(customer) %>% 
+  summarise(
+    min_hour = as.numeric(min(hour)),
+    max_hour = as.numeric(max(hour)),
+    modus_hour = as.numeric(getmodus(hour)),
+    food = mean(food),
+    fresh = mean(fresh),
+    drinks = mean(drinks),
+    home = mean(home),
+    beauty = mean(beauty),
+    health = mean(health),
+    baby = mean(baby),
+    pets = mean(pets)
+  ) %>% 
+  ungroup() %>% arrange(customer)
+
+
+ub_cust_cluster <- cbind(ub_data,cluster=k7_cust$cluster)
+ub_cust_cluster$cluster <-  sapply(as.factor(ub_cust_cluster$cluster),switch,
+                         "1"="home decorator",
+                         "2"="cooking enthusiast",
+                         "3"="family",
+                         "4"="beauty conscious",
+                         "5"="teenager",
+                         "6"="new parents",
+                         "7"="regular shopper")
+
+data.frame(table(ub_cust_cluster$cluster)) %>% 
+  mutate(
+    Var1 = reorder(Var1,Freq)
+  ) %>% 
+  ggplot(aes(Var1,Freq))+
+  geom_bar(stat="identity",aes(fill=Var1), show.legend = FALSE)+
+  geom_text(aes(label=Freq, y=Freq+150),size=3, color="white")+
+  labs(
+    title = "Total Customer by Cluster",
+    x = "Cluster",
+    y = "Total Customer"
+  )+
+  my_theme_fill()+
+  my_plot_theme(10)
+
+```
+
+
+
+
+
+
+
+
+
+
+

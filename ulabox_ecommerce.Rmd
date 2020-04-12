@@ -1,7 +1,6 @@
 ---
-title: "Customer Basket Analysis"
-subtitle: "Supply Chain & Clusters based Strategy analysis"
-date: "`r Sys.Date()`"
+title: "Ulabox : Baskets Clustering and Analysis"
+date: "2020/04/12"
 author: "Gabriel Erichson"
 output:
   rmdformats::readthedown:
@@ -10,6 +9,7 @@ output:
     code_folding: hide
 ---
 
+Github : [Ulabox : Baskets Clustering and Analysis](https://github.com/gabrielerichsonmrp/Ulabox-eCommerce)
 
 ```{r setup, echo=FALSE, cache=FALSE}
 library(knitr)
@@ -182,15 +182,17 @@ my_plot_theme <- function (base_size, base_family="Segoe UI Semibold"){
 
 # Introduction
 
-Ulabox adalah salah satu perusahaan di Spanyol yang bergerak dibidang online supermarket. Pada tahun 2017, Ulabox mendapatkan €1 juta per-bulan dan berhasil mendapatkan 95% kepuasan pelanggan. Ulabox melayani 8 kategori produk pada tahun 2017, dan tujuh dari delapan kategori disajikan di seluruh Spanyol. Kategori produk **Fresh** hanya disajikan di 2 kota yaitu Madrid & Barcelona.
+Ulabox adalah salah satu perusahaan di Spanyol yang bergerak dibidang online supermarket. Pada tahun 2017, Ulabox mendapatkan €1 juta per-bulan dan berhasil mendapatkan 95% kepuasan pelanggan. Ulabox melayani 8 kategori produk pada tahun 2017, dan tujuh dari delapan kategori disajikan di seluruh Spanyol, kecuali Kategori produk **Fresh** hanya disajikan di kota yaitu Madrid & Barcelona.
 
 
 # Goal
 
-Goal dari projek ini yaitu melakukan clustering untuk mengetahui seorang customer itu tergolong customer yang cenderung membeli produk apa dan mencari tau habbit jam melakukan order.
+Goal dari projek ini yaitu melakukan clustering untuk mengetahui seorang customer itu tergolong customer yang cenderung membeli produk kategori apa dan mencari tau habbit jam melakukan order pada setiap clusternya.
 
 
-# Data
+# Data Preprocessing
+
+## Data Inspection
 
 Data yang digunakan mencakup 30k order dari 10k customer pada tahun 2017. Setiap baris data merepresentasikan keranjang belanja customer dalam 1 kali order. Sumber data bisa didapatkan dari sini [The Ulabox Online Supermarket Dataset 2017](https://www.github.com/ulabox/datasets). Berikut informasi data pada dataset:
 
@@ -224,8 +226,6 @@ kable_styling(c("striped", "hover", "condensed", "responsive"), full_width = T) 
 row_spec(0, color = "white", background = "#222629")  
 ```
 
-
-# Data Preprocessing
 
 ## Data Structure
 ```{r}
@@ -277,27 +277,7 @@ Tidak terdapat duplicate value.
 
 
 
-# Feature Extraction
-
-Ulabox melayani 8 kategori produk pada tahun 2017. Tujuh dari delapan kategori disajikan di seluruh Spanyol dan kategori produk **Fresh** hanya disajikan di 2 kota yaitu Madrid & Barcelona. Berarti bisa kita asumsikan customer yang membeli produk kategori **Fresh** merupakan customer yang berada di Madrid & Barcelona.
-
-```{r}
-loc <- ulabox %>% group_by(customer) %>%
-  summarise(
-    fresh = sum(fresh)
-  ) %>% ungroup() %>%
-  mutate(
-    location = ifelse(fresh>0,"Madrid & Barcelona","Rest of Spain"),
-    location = as.factor(location)
-  ) %>%
-  select(-fresh)
-
-ulabox <- ulabox %>% inner_join(loc, by=c("customer","customer"))
-
-```
-
-
-# EDA
+# Exploratory Data Analysis
 
 Sesuai yang informasikan dari [The Ulabox Online Supermarket Dataset 2017](https://www.github.com/ulabox/datasets) terdapat customer yang merupakan **Influencer**, dan customer kategori ini mendapatkan diskon 100% atau tidak melakukan pembayaran. Mari kita cek proporsinya. 
 
@@ -498,10 +478,12 @@ Chart diatas menunjukan jumlah item yang di order masing-masing customer cukup b
 
 ***
 
-# Basket Analysis
+# Clustering & Analysis
+
+Berdasarkan analisa sebleumnya, maka memungkinkan kita untuk melakukan clustering karena kategori produk yang diorder customer cukup bervariatif.
 
 ## Data Tranformation
-Tujuan dari clustering kali ini yaitu untuk mengetahui apakah terdapat cluster pada data ini. Untuk maka kita bisa mentransformasi datanya menjadi:
+Tujuan dari projek ini yaitu melakukan clustering untuk mengetahui seorang customer itu tergolong customer yang cenderung membeli produk kategori apa dan mencari tau habbit jam melakukan order pada setiap clusternya. Untuk itu kita bisa fokus ke data persentase pembelian pada setiap kategori produk, sehingga kita bisa mentransformasi datanya menjadi sebgai berikut:
 
 1. *food* : rata-rata persentase pembelian produk kategori food
 2. *fresh* : rata-rata persentase pembelian produk kategori fresh
@@ -513,7 +495,7 @@ Tujuan dari clustering kali ini yaitu untuk mengetahui apakah terdapat cluster p
 8. *pets* : rata-rata persentase pembelian produk kategori pets
 
 
-Saya memilih menggunakan rata-rata karena data kita menunjukan 1 customer bisa melakukan order beberapa kali.
+Saya memilih menggunakan rata-rata karena data kita menunjukan 1 customer bisa melakukan order beberapa kali. Berikut hasil transformasinya:
 
 ```{r}
 ub_data <- ulabox
@@ -566,7 +548,7 @@ Kedua metode diatas menunjukan nilai K-Optimum yang berbeda, disisi lain kita ta
 
 ## K-Means Clustering
 
-Kebaikan hasil clustering dapat dilihat dari 3 nilai:
+Metode K-Means akan melakukan Clustering berdasarkan jarak. Salah satu hal penting yang perlu dilakukan sebelum menggunakan metode k-means yaitu memastikan seluruh data sudah dalam skala yang sama. Dalam case ini kita tidak perlu melakukan scalling karna setiap variabel berisikan nilai dari skala 0-100%. Kebaikan hasil clustering dapat dilihat dari 3 nilai:
 
 1. **Within Sum of Squares ($withinss)**: jarak tiap observasi ke centroid untuk tiap cluster 
 2. **Total Sum of Squares ($totss)**: jarak tiap observasi ke global sample mean (rata-rata data keseluruhan).
@@ -719,7 +701,7 @@ Pets% : Items related with dogs, cats and other pets; like food, toys, sanitary 
 -->
 
 
-## Cluster Profiling
+## Cluster Profiling & Analysis
 
 Berdasarkan visualisasi pada chart **Clustering using K=7**, maka berikut ini deskripsi dan label yang dapat kita berikan:
 
@@ -780,13 +762,309 @@ data.frame(table(ub_cust_cluster$cluster)) %>%
 
 ```
 
+Chart diatas adalah menunjukan informasi total customer berdasarkan hasil clustering yang sudah dilakukan. Customer kategori Beauty Concious paling sedikit dan customer kategori reguler shopper paling banyak. Oke, mari kita lihat pola frekuensi order dari setiap cluster.
 
 
 
+```{r, fig.width=10, fig.asp=1}
+
+cust_time <- ub_cust_cluster %>% select(customer,cluster) %>% 
+  left_join(ulabox,by=c("customer","customer"))
+
+hours <- data.frame(hour=c(0:23)) %>% mutate(hour=ordered(hour,0:23))
+serror <- function(x) sqrt(var(x)/length(x)) 
+
+# regular shopper
+c_regular_shopper <- cust_time %>% filter(cluster=="regular shopper") %>%
+  group_by(hour) %>% 
+  summarise(
+    freq_order = n(),
+    total_items = sum(total_items)
+  ) %>% 
+  ungroup() %>% 
+  right_join(hours, by=c("hour","hour")) %>% 
+  mutate(
+    freq_order = ifelse(is.na(freq_order),0,freq_order),
+    total_items = ifelse(is.na(total_items),0,total_items),
+    hour = reorder(hour,0:23)
+  )
+
+ggplot(c_regular_shopper, aes(x=hour, y=freq_order, fill = hour)) +
+  geom_bar(width = 1, stat = "identity", color = "white", show.legend = FALSE) +
+  geom_errorbar(aes(ymin = freq_order - serror(freq_order), 
+                    ymax = freq_order + serror(freq_order), 
+                    color = hour), 
+                    width = .2) + 
+  scale_y_continuous(breaks = 0:nlevels(hour)) +
+  labs(
+    title = "Hourly Order for Regular Shopper"
+  )+
+ theme_minimal() +
+  theme(axis.title = element_blank(),
+        legend.position = "none",
+        plot.title = element_text(hjust = 0.5, size=10, face="bold"),
+        axis.text.y = element_blank(),
+        axis.text.x=element_text(face="bold"))+
+  coord_polar()+
+  my_theme_fill()+
+  my_theme_color() -> polar7
+
+
+# new parents
+c_new_parents <- cust_time %>% filter(cluster=="new parents") %>%
+  group_by(hour) %>% 
+  summarise(
+    freq_order = n(),
+    total_items = sum(total_items)
+  ) %>% 
+  ungroup() %>% 
+  right_join(hours, by=c("hour","hour")) %>% 
+  mutate(
+    freq_order = ifelse(is.na(freq_order),0,freq_order),
+    total_items = ifelse(is.na(total_items),0,total_items),
+    hour = reorder(hour,0:23)
+  )
+
+ggplot(c_new_parents, aes(x=hour, y=freq_order, fill = hour)) +
+  geom_bar(width = 1, stat = "identity", color = "white", show.legend = FALSE) +
+  geom_errorbar(aes(ymin = freq_order - serror(freq_order), 
+                    ymax = freq_order + serror(freq_order), 
+                    color = hour), 
+                    width = .2) + 
+  scale_y_continuous(breaks = 0:nlevels(hour)) +
+  labs(
+    title = "Hourly Order for New Parents"
+  )+
+ theme_minimal() +
+  theme(axis.title = element_blank(),
+        legend.position = "none",
+        plot.title = element_text(hjust = 0.5, size=10, face="bold"),
+        axis.text.y = element_blank(),
+        axis.text.x=element_text(face="bold"))+
+  coord_polar()+
+  my_theme_fill()+
+  my_theme_color() -> polar5
+
+
+# home decorator
+c_home_decorator <- cust_time %>% filter(cluster=="home decorator") %>%
+  group_by(hour) %>% 
+  summarise(
+    freq_order = n(),
+    total_items = sum(total_items)
+  ) %>% 
+  ungroup() %>% 
+  right_join(hours, by=c("hour","hour")) %>% 
+  mutate(
+    freq_order = ifelse(is.na(freq_order),0,freq_order),
+    total_items = ifelse(is.na(total_items),0,total_items),
+    hour = reorder(hour,0:23)
+  )
+
+ggplot(c_home_decorator, aes(x=hour, y=freq_order, fill = hour)) +
+  geom_bar(width = 1, stat = "identity", color = "white", show.legend = FALSE) +
+  geom_errorbar(aes(ymin = freq_order - serror(freq_order), 
+                    ymax = freq_order + serror(freq_order), 
+                    color = hour), 
+                    width = .2) + 
+  scale_y_continuous(breaks = 0:nlevels(hour)) +
+  labs(
+    title = "Hourly Order for Home Decorator"
+  )+
+ theme_minimal() +
+  theme(axis.title = element_blank(),
+        legend.position = "none",
+        plot.title = element_text(hjust = 0.5, size=10, face="bold"),
+        axis.text.y = element_blank(),
+        axis.text.x=element_text(face="bold"))+
+  coord_polar()+
+  my_theme_fill()+
+  my_theme_color() -> polar2
+
+
+# teenager
+c_teenager <- cust_time %>% filter(cluster=="teenager") %>%
+  group_by(hour) %>% 
+  summarise(
+    freq_order = n(),
+    total_items = sum(total_items)
+  ) %>% 
+  ungroup() %>% 
+  right_join(hours, by=c("hour","hour")) %>% 
+  mutate(
+    freq_order = ifelse(is.na(freq_order),0,freq_order),
+    total_items = ifelse(is.na(total_items),0,total_items),
+    hour = reorder(hour,0:23)
+  )
+
+ggplot(c_teenager, aes(x=hour, y=freq_order, fill = hour)) +
+  geom_bar(width = 1, stat = "identity", color = "white", show.legend = FALSE) +
+  geom_errorbar(aes(ymin = freq_order - serror(freq_order), 
+                    ymax = freq_order + serror(freq_order), 
+                    color = hour), 
+                    width = .2) + 
+  scale_y_continuous(breaks = 0:nlevels(hour)) +
+  labs(
+    title = "Hourly Order for Teenager"
+  )+
+ theme_minimal() +
+  theme(axis.title = element_blank(),
+        legend.position = "none",
+        plot.title = element_text(hjust = 0.5, size=10, face="bold"),
+        axis.text.y = element_blank(),
+        axis.text.x=element_text(face="bold"))+
+  coord_polar()+
+  my_theme_fill()+
+  my_theme_color() -> polar4
+
+
+# beauty conscious
+c_beauty_conscious <- cust_time %>% filter(cluster=="beauty conscious") %>%
+  group_by(hour) %>% 
+  summarise(
+    freq_order = n(),
+    total_items = sum(total_items)
+  ) %>% 
+  ungroup() %>% 
+  right_join(hours, by=c("hour","hour")) %>% 
+  mutate(
+    freq_order = ifelse(is.na(freq_order),0,freq_order),
+    total_items = ifelse(is.na(total_items),0,total_items),
+    hour = reorder(hour,0:23)
+  )
+
+ggplot(c_beauty_conscious, aes(x=hour, y=freq_order, fill = hour)) +
+  geom_bar(width = 1, stat = "identity", color = "white", show.legend = FALSE) +
+  geom_errorbar(aes(ymin = freq_order - serror(freq_order), 
+                    ymax = freq_order + serror(freq_order), 
+                    color = hour), 
+                    width = .2) + 
+  scale_y_continuous(breaks = 0:nlevels(hour)) +
+  labs(
+    title = "Hourly Order for Beauty Conscious"
+  )+
+ theme_minimal() +
+  theme(axis.title = element_blank(),
+        legend.position = "none",
+        plot.title = element_text(hjust = 0.5, size=10, face="bold"),
+        axis.text.y = element_blank(),
+        axis.text.x=element_text(face="bold"))+
+  coord_polar()+
+  my_theme_fill()+
+  my_theme_color() -> polar1
 
 
 
+# cooking enthusiast
+c_cooking_enthusiast <- cust_time %>% filter(cluster=="cooking enthusiast") %>%
+  group_by(hour) %>% 
+  summarise(
+    freq_order = n(),
+    total_items = sum(total_items)
+  ) %>% 
+  ungroup() %>% 
+  right_join(hours, by=c("hour","hour")) %>% 
+  mutate(
+    freq_order = ifelse(is.na(freq_order),0,freq_order),
+    total_items = ifelse(is.na(total_items),0,total_items),
+    hour = reorder(hour,0:23)
+  )
+
+ggplot(c_cooking_enthusiast, aes(x=hour, y=freq_order, fill = hour)) +
+  geom_bar(width = 1, stat = "identity", color = "white", show.legend = FALSE) +
+  geom_errorbar(aes(ymin = freq_order - serror(freq_order), 
+                    ymax = freq_order + serror(freq_order), 
+                    color = hour), 
+                    width = .2) + 
+  scale_y_continuous(breaks = 0:nlevels(hour)) +
+  labs(
+    title = "Hourly Order for Cooking Enthusiast"
+  )+
+ theme_minimal() +
+  theme(axis.title = element_blank(),
+        legend.position = "none",
+        plot.title = element_text(hjust = 0.5, size=10, face="bold"),
+        axis.text.y = element_blank(),
+        axis.text.x=element_text(face="bold"))+
+  coord_polar()+
+  my_theme_fill()+
+  my_theme_color() -> polar3
 
 
+
+# family
+c_family <- cust_time %>% filter(cluster=="family") %>%
+  group_by(hour) %>% 
+  summarise(
+    freq_order = n(),
+    total_items = sum(total_items)
+  ) %>% 
+  ungroup() %>% 
+  right_join(hours, by=c("hour","hour")) %>% 
+  mutate(
+    freq_order = ifelse(is.na(freq_order),0,freq_order),
+    total_items = ifelse(is.na(total_items),0,total_items),
+    hour = reorder(hour,0:23)
+  )
+
+ggplot(c_family, aes(x=hour, y=freq_order, fill = hour)) +
+  geom_bar(width = 1, stat = "identity", color = "white", show.legend = FALSE) +
+  geom_errorbar(aes(ymin = freq_order - serror(freq_order), 
+                    ymax = freq_order + serror(freq_order), 
+                    color = hour), 
+                    width = .2) + 
+  scale_y_continuous(breaks = 0:nlevels(hour)) +
+  labs(
+    title = "Hourly Order for Family"
+  )+
+ theme_minimal() +
+  theme(axis.title = element_blank(),
+        legend.position = "none",
+        plot.title = element_text(hjust = 0.5, size=10, face="bold"),
+        axis.text.y = element_blank(),
+        axis.text.x=element_text(face="bold"))+
+  coord_polar()+
+  my_theme_fill()+
+  my_theme_color() -> polar6
+
+
+
+grid.arrange(polar1,polar2,polar3,polar4,polar5,polar6,polar7, ncol = 3)
+
+```
+
+Sebelumnya perlu diketahui, chart diatas bersifat individual sehingga kita tidak dapat membandingkan frekuensi order antar cluster dengan melihat tinggi rendahnya barplot. Namun, dari chart diatas dapat kita simpulkan bahwa frekuensi order minimum terjadi dari pukul 01.00 sampai 06.00. Selain itu kita juga mendapat informasi habbit setiap cluster dalam melakukan order berdasarkan jam per-harinya sebagai berikut:
+
+1. Cluster **Beauty Concious**: cenderung melakukan order pada pukul 08.00 dan 17.00.
+2. Cluster **home decorator**: cenderung melakukan transaksi dari pukul 08.00 sampai 00.00, namun frekuensi order paling tinggi terjadi dari pukul 10.00 sampai 12.00.
+3. Cluster **cooking enthusiast**: cenderung melakukan transaksi dari pukul 09.00 sampai 00.00 dan frekuensi order paling tinggi terjadi pada pukul 12.00.
+4. Cluster **teenager**: cenderung melakukan transaksi dari pukul 09.00 sampai 00.00 dan frekuensi order paling tinggi terjadi pada pukul 10.00 sampai 13.00 dan dari pukul 18.00 sampai 22.00.
+5. Cluster **new parents**: cenderung melakukan transaksi dari pukul 08.00 sampai 00.00, namun frekuensi order paling tinggi terjadi pada pukul 10.00 sampai 11.00 dan 22.00 sampai 23.00.
+6. Cluster **family**: cenderung melakukan transaksi dari pukul 08.00 sampai 00.00 dan frekuensi order paling tinggi terjadi pada pukul 10.00 sampai 13.00 dan pukul 20.00 sampai 22.00.
+7. Cluster **regular shopper**: cenderung melakukan transaksi dari pukul 08.00 sampai 00.00 dan frekuensi order paling tinggi terjadi dari pukul 21.00 sampai 22.00.
+
+<br>
+
+***
+
+# Summary
+
+Setelah dilakukan Clustering diketahui terdapat 7 Cluster Customer berdasarkan data keranjang belanja. Rata-rata customer ulabox melakukan order dari rentang waktu pukul 08.00 sampai dengan 00.00, namun setiap cluster memiliki habbit melakukan order pada jam yang cenderung berbeda. Hasil analisis yang dilakukan dapat membantu Ulabox untuk menentukan strategi penjualan pada masing-masing cluster. Salah satunya yang dapat kita sarankan yaitu menjalankan strategi promo dan diskon secara spesifik terhadap masing-masing cluster pada jam-jam yang memiliki frekuensi order tinggi.
+
+***
+
+<br>
+
+# Reference
+
+[Martinez, j. (2017) Ulabox orders with categories' partials 2017](https://www.kaggle.com/ulabox/ulabox-orders-with-categories-partials-2017)
+
+[Hari, H. (2017) Customer segmentation analysis, Clustering](https://github.com/Hari365/customer-segmentation-python)
+
+[Arga,A. (2019) K-Means Clustering](https://rpubs.com/Argaadya/540881)
+
+[Fauziyyah, N.A. (2019) Unsupervised Learning: Wheat Seed Analysis](https://rpubs.com/nabiilahardini/wheatseed)
+
+[Secun,S. (2017) Ulabox orders 2017- Clustering and regression](https://www.kaggle.com/secunsexto/ulabox-orders-2017-clustering-and-regression)
 
 
